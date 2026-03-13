@@ -111,13 +111,14 @@ jobs:
           HEIGHT=$(identify -format "%h" "$BG")
           CENTER_Y=$(( (HEIGHT - DIGIT_H) / 2 ))
           
-          TOTAL_X=$(calc_start_x "$TOTAL" 180)
+          SIDE_MARGIN=180
+          TOTAL_X=$(calc_start_x "$TOTAL" $SIDE_MARGIN)
           CURRENT_X=$(calc_start_x "$CURRENT" $((WIDTH/2)))
-          LONGEST_X=$(calc_start_x "$LONGEST" $((WIDTH - 120)))
+          LONGEST_X=$(calc_start_x "$LONGEST" $((WIDTH - SIDE_MARGIN)))
           
-          TOTAL_Y=$CENTER_Y
           CURRENT_Y=$((CENTER_Y - DIGIT_H/2))
-          LONGEST_Y=$CENTER_Y
+          TOTAL_Y=$CURRENT_Y
+          LONGEST_Y=$CURRENT_Y
           
           COMPOSITE_CMD="convert '$BG'"
           
@@ -155,16 +156,20 @@ jobs:
           export TS=$(date +%s)
           python3 << 'PYEOF'
           import re, os
-          with open('README.md') as f:
-            content = f.read()
           repo = os.environ['REPO']
           branch = os.environ['BRANCH']
           ts = os.environ.get('TS', '0')
-          pattern = r'\[!\[Stats\]\(https://raw\.githubusercontent\.com/[^/]+/[^/]+/[^/]+/counter\.png(\?v=[0-9]+)?\)\]\(https://github\.com/[^)]+\)'
-          replacement = f'[![Stats](https://raw.githubusercontent.com/{repo}/{branch}/counter.png?v={ts})](https://github.com/{repo})'
-          content = re.sub(pattern, replacement, content)
+          new_url = f'https://raw.githubusercontent.com/{repo}/{branch}/counter.png?v={ts}'
+          badge = f'[![Stats]({new_url})](https://github.com/{repo})'
+          with open('README.md') as f:
+            content = f.read()
+          pattern = r'\[!\[Stats\]\(https://raw\.githubusercontent\.com/[^)]+counter\.png[^)]*\)\]\(https://github\.com/[^)]+\)'
+          new_content = re.sub(pattern, badge, content)
+          if new_content == content:
+            new_content = re.sub(r'https://raw\.githubusercontent\.com/[^/]+/[^/]+/[^/]+/counter\.png(\?v=[0-9]+)?', new_url, content)
           with open('README.md', 'w') as f:
-            f.write(content)
+            f.write(new_content)
+          print(f"Badge URL: ?v={ts}")
           PYEOF
 
       - name: Commit and Push
