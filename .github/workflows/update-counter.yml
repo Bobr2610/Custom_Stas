@@ -108,13 +108,16 @@ jobs:
             echo $x
           }
           
+          HEIGHT=$(identify -format "%h" "$BG")
+          CENTER_Y=$(( (HEIGHT - DIGIT_H) / 2 ))
+          
           TOTAL_X=$(calc_start_x "$TOTAL" 250)
           CURRENT_X=$(calc_start_x "$CURRENT" $((WIDTH/2)))
           LONGEST_X=$(calc_start_x "$LONGEST" $((WIDTH - 250)))
           
-          TOTAL_Y=500
-          CURRENT_Y=400
-          LONGEST_Y=500
+          TOTAL_Y=$CENTER_Y
+          CURRENT_Y=$CENTER_Y
+          LONGEST_Y=$CENTER_Y
           
           COMPOSITE_CMD="convert '$BG'"
           
