@@ -12,6 +12,9 @@ on:
       - 'background.png'
       - 'README.md'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   update-counter:
     runs-on: ubuntu-latest
@@ -21,27 +24,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get views count
-        id: views
-        env:
-          TRAFFIC_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          echo "Repo: $REPO"
-          if [ -n "$TRAFFIC_TOKEN" ]; then
-            echo "Using token..."
-            RESP=$(curl -s -H "Authorization: token $TRAFFIC_TOKEN" \
-              "https://api.github.com/repos/$REPO/traffic/views")
-            echo "Response: $RESP"
-            COUNT=$(echo "$RESP" | jq '.count[-1].count // 0')
-          else
-            COUNT=$(cat counter.json 2>/dev/null | jq -r '.count // 0')
-          fi
-          echo "Count: $COUNT"
-          echo "count=$COUNT" >> $GITHUB_OUTPUT
-
       - name: Setup ImageMagick
         run: sudo apt-get update && sudo apt-get install -y imagemagick jq
+
+      - name: Get GitHub contribution stats
+        id: stats
+        run: |
+          USER="${{ github.repository_owner }}"
+          echo "user=$USER" >> $GITHUB_OUTPUT
+          
+          RESP=$(curl -sf "https://api.franznkemaka.com/github-streak/stats/$USER" 2>/dev/null || echo '{}')
+          echo "API response: $RESP"
+          
+          TOTAL=$(echo "$RESP" | jq -r '.totalContributions // 0')
+          CURRENT=$(echo "$RESP" | jq -r 'if .currentStreak.days then .currentStreak.days elif .currentStreak then .currentStreak else 0 end')
+          LONGEST=$(echo "$RESP" | jq -r 'if .longestStreak.days then .longestStreak.days elif .longestStreak then .longestStreak else 0 end')
+          
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "longest=$LONGEST" >> $GITHUB_OUTPUT
+          echo "Total: $TOTAL, Current: $CURRENT, Longest: $LONGEST"
 
       - name: Create digit images
         run: |
@@ -52,11 +54,15 @@ jobs:
             done
           done
 
-      - name: Create counter image with views overlay
+      - name: Create counter image with stats overlay
         env:
-          COUNT: ${{ steps.views.outputs.count }}
+          TOTAL: ${{ steps.stats.outputs.total }}
+          CURRENT: ${{ steps.stats.outputs.current }}
+          LONGEST: ${{ steps.stats.outputs.longest }}
         run: |
-          COUNT="${COUNT:-0}"
+          TOTAL="${TOTAL:-0}"
+          CURRENT="${CURRENT:-0}"
+          LONGEST="${LONGEST:-0}"
           
           BG=""
           [ -f "Theme/theme_beavers.png" ] && BG="Theme/theme_beavers.png"
@@ -65,7 +71,7 @@ jobs:
           [ -z "$BG" ] && ls theme/*.png 1>/dev/null 2>&1 && BG=$(ls theme/*.png | head -1)
           [ -z "$BG" ] && [ -f "background.png" ] && BG="background.png"
           if [ -z "$BG" ]; then
-            convert -size 200x50 xc:transparent -background transparent counter.png
+            convert -size 1332x800 xc:transparent -background transparent counter.png
             exit 0
           fi
           
@@ -76,25 +82,49 @@ jobs:
           DIGIT_H=52
           SPACING=2
           
-          LEN=${#COUNT}
-          [ $LEN -eq 0 ] && COUNT="0" && LEN=1
-          COUNTER_W=$((LEN * (DIGIT_W + SPACING) - SPACING))
-          CENTER=$((WIDTH / 2))
-          START_X=$((CENTER - COUNTER_W/2))
-          [ $START_X -lt 10 ] && START_X=10
-          START_Y=$((HEIGHT - DIGIT_H - 20))
+          calc_start_x() {
+            local n=$1
+            local center=$2
+            local len=${#n}
+            [ $len -eq 0 ] && len=1
+            local w=$((len * (DIGIT_W + SPACING) - SPACING))
+            local x=$((center - w/2))
+            [ $x -lt 10 ] && x=10
+            echo $x
+          }
+          
+          TOTAL_X=$(calc_start_x "$TOTAL" 250)
+          CURRENT_X=$(calc_start_x "$CURRENT" $((WIDTH/2)))
+          LONGEST_X=$(calc_start_x "$LONGEST" $((WIDTH - 250)))
+          
+          TOTAL_Y=500
+          CURRENT_Y=400
+          LONGEST_Y=500
           
           COMPOSITE_CMD="convert '$BG'"
           
-          for i in $(seq 0 $((LEN - 1))); do
-            D="${COUNT:$i:1}"
-            DF="Theme/$D.png"
-            [ ! -f "$DF" ] && DF="theme/$D.png"
-            if [ -f "$DF" ]; then
-              XP=$((START_X + i * (DIGIT_W + SPACING)))
-              COMPOSITE_CMD="$COMPOSITE_CMD \\( '$DF' -resize ${DIGIT_W}x${DIGIT_H} \\) -geometry +${XP}+${START_Y} -composite"
-            fi
-          done
+          add_num() {
+            local NUM=$1
+            local SX=$2
+            local SY=$3
+            [ -z "$NUM" ] && NUM="0"
+            local LEN=${#NUM}
+            [ $LEN -eq 0 ] && NUM="0" && LEN=1
+            local i XP D DF
+            for i in $(seq 0 $((LEN - 1))); do
+              D="${NUM:$i:1}"
+              DF="Theme/$D.png"
+              [ ! -f "$DF" ] && DF="theme/$D.png"
+              if [ -f "$DF" ]; then
+                XP=$((SX + i * (DIGIT_W + SPACING)))
+                COMPOSITE_CMD="$COMPOSITE_CMD \\( '$DF' -resize ${DIGIT_W}x${DIGIT_H} \\) -geometry +${XP}+${SY} -composite"
+              fi
+            done
+          }
+          
+          add_num "$TOTAL" "$TOTAL_X" "$TOTAL_Y"
+          add_num "$CURRENT" "$CURRENT_X" "$CURRENT_Y"
+          add_num "$LONGEST" "$LONGEST_X" "$LONGEST_Y"
           
           COMPOSITE_CMD="$COMPOSITE_CMD counter.png"
           eval $COMPOSITE_CMD
@@ -124,5 +154,6 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add -A
-          git diff --staged --quiet || git commit -m "Update counter"
+          git diff --staged --quiet && echo "No changes to commit" || git commit -m "Update counter"
+          git status
           git push
