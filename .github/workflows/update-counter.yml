@@ -93,19 +93,16 @@ jobs:
           fi
           
           WIDTH=$(identify -format "%w" "$BG")
-          DIGIT_W=40
-          DIGIT_H=52
-          SIDE_DIGIT_W=60
-          SIDE_DIGIT_H=78
+          DIGIT_W=60
+          DIGIT_H=78
           SPACING=2
           
           calc_start_x() {
             local n=$1
             local center=$2
-            local dw=$3
             local len=${#n}
             [ $len -eq 0 ] && len=1
-            local w=$((len * (dw + SPACING) - SPACING))
+            local w=$((len * (DIGIT_W + SPACING) - SPACING))
             local x=$((center - w/2))
             [ $x -lt 10 ] && x=10
             echo $x
@@ -113,16 +110,15 @@ jobs:
           
           HEIGHT=$(identify -format "%h" "$BG")
           CENTER_Y=$(( (HEIGHT - DIGIT_H) / 2 ))
-          SIDE_Y=$((CENTER_Y + DIGIT_H/2 - SIDE_DIGIT_H/2))
           
           SIDE_MARGIN=180
-          TOTAL_X=$(calc_start_x "$TOTAL" $SIDE_MARGIN $SIDE_DIGIT_W)
-          CURRENT_X=$(calc_start_x "$CURRENT" $((WIDTH/2)) $DIGIT_W)
-          LONGEST_X=$(calc_start_x "$LONGEST" $((WIDTH - SIDE_MARGIN)) $SIDE_DIGIT_W)
+          TOTAL_X=$(calc_start_x "$TOTAL" $SIDE_MARGIN)
+          CURRENT_X=$(calc_start_x "$CURRENT" $((WIDTH/2)))
+          LONGEST_X=$(calc_start_x "$LONGEST" $((WIDTH - SIDE_MARGIN)))
           
-          CURRENT_Y=$((CENTER_Y - DIGIT_H/2))
-          TOTAL_Y=$SIDE_Y
-          LONGEST_Y=$SIDE_Y
+          TOTAL_Y=$((CENTER_Y - DIGIT_H/2))
+          CURRENT_Y=$TOTAL_Y
+          LONGEST_Y=$TOTAL_Y
           
           COMPOSITE_CMD="convert '$BG'"
           
@@ -130,8 +126,6 @@ jobs:
             local NUM=$1
             local SX=$2
             local SY=$3
-            local DW=$4
-            local DH=$5
             [ -z "$NUM" ] && NUM="0"
             local LEN=${#NUM}
             [ $LEN -eq 0 ] && NUM="0" && LEN=1
@@ -141,15 +135,15 @@ jobs:
               DF="Theme/$D.png"
               [ ! -f "$DF" ] && DF="theme/$D.png"
               if [ -f "$DF" ]; then
-                XP=$((SX + i * (DW + SPACING)))
-                COMPOSITE_CMD="$COMPOSITE_CMD \\( '$DF' -resize ${DW}x${DH} \\) -geometry +${XP}+${SY} -composite"
+                XP=$((SX + i * (DIGIT_W + SPACING)))
+                COMPOSITE_CMD="$COMPOSITE_CMD \\( '$DF' -resize ${DIGIT_W}x${DIGIT_H} \\) -geometry +${XP}+${SY} -composite"
               fi
             done
           }
           
-          add_num "$TOTAL" "$TOTAL_X" "$TOTAL_Y" $SIDE_DIGIT_W $SIDE_DIGIT_H
-          add_num "$CURRENT" "$CURRENT_X" "$CURRENT_Y" $DIGIT_W $DIGIT_H
-          add_num "$LONGEST" "$LONGEST_X" "$LONGEST_Y" $SIDE_DIGIT_W $SIDE_DIGIT_H
+          add_num "$TOTAL" "$TOTAL_X" "$TOTAL_Y"
+          add_num "$CURRENT" "$CURRENT_X" "$CURRENT_Y"
+          add_num "$LONGEST" "$LONGEST_X" "$LONGEST_Y"
           
           COMPOSITE_CMD="$COMPOSITE_CMD counter.png"
           eval $COMPOSITE_CMD
