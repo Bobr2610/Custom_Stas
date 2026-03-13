@@ -148,41 +148,41 @@ jobs:
           COMPOSITE_CMD="$COMPOSITE_CMD counter.png"
           eval $COMPOSITE_CMD
 
-      - name: Update README badge (from Views_Counter)
-        id: cachebust
-        env:
-          REPO: ${{ github.repository }}
-          BRANCH: ${{ github.ref_name }}
-        run: |
-          TS=$(date +%s)
-          echo "ts=$TS" >> $GITHUB_OUTPUT
-          export TS REPO BRANCH
-          python3 << 'PYEOF'
-          import re, os
-          repo = os.environ['REPO']
-          branch = os.environ['BRANCH']
-          ts = os.environ.get('TS', '0')
-          new_url = f'https://raw.githubusercontent.com/{repo}/{branch}/counter.png?v={ts}'
-          badge = f'[![Stats]({new_url})](https://github.com/{repo})'
-          with open('README.md') as f:
-            content = f.read()
-          pattern = r'\[!\[Stats\]\(https://raw\.githubusercontent\.com/[^)]+counter\.png[^)]*\)\]\(https://github\.com/[^)]+\)'
-          new_content = re.sub(pattern, badge, content)
-          if new_content == content:
-            new_content = re.sub(
-              r'https://raw\.githubusercontent\.com/[^/]+/[^/]+/[^/]+/counter\.png(\?v=[0-9]+)?',
-              new_url,
-              content
-            )
-          with open('README.md', 'w') as f:
-            f.write(new_content)
-          print(f"Badge URL updated: ?v={ts}")
-          PYEOF
-
-      - name: Commit and Push
+      - name: Commit counter.png first
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add counter.png README.md
-          git diff --staged --quiet || git commit -m "Update counter: ${{ steps.stats.outputs.total }}/${{ steps.stats.outputs.current }}/${{ steps.stats.outputs.longest }}"
+          git add counter.png
+          git diff --staged --quiet || git commit -m "Update counter image"
+
+      - name: Update README badge with commit SHA (busts cache)
+        id: cachebust
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          export SHA REPO
+          python3 << 'PYEOF'
+          import re, os
+          repo = os.environ['REPO']
+          sha = os.environ.get('SHA', '')
+          new_url = f'https://raw.githubusercontent.com/{repo}/{sha}/counter.png'
+          badge = f'[![Stats]({new_url})](https://github.com/{repo})'
+          with open('README.md') as f:
+            content = f.read()
+          content = re.sub(
+            r'\[!\[Stats\]\(https://raw\.githubusercontent\.com/[^)]+\)\]\(https://github\.com/[^)]+\)',
+            badge,
+            content
+          )
+          with open('README.md', 'w') as f:
+            f.write(content)
+          print(f"Badge URL: /{sha[:7]}/counter.png")
+          PYEOF
+
+      - name: Commit README and Push
+        run: |
+          git add README.md
+          git diff --staged --quiet || git commit -m "Update README badge: ${{ steps.stats.outputs.total }}/${{ steps.stats.outputs.current }}/${{ steps.stats.outputs.longest }}"
           git push
