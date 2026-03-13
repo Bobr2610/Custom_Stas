@@ -163,20 +163,17 @@ jobs:
           branch = os.environ['BRANCH']
           ts = os.environ.get('TS', '0')
           new_url = f'https://raw.githubusercontent.com/{repo}/{branch}/counter.png?v={ts}'
-          badge = f'[![Stats]({new_url})](https://github.com/{repo})'
           with open('README.md') as f:
             content = f.read()
-          pattern = r'\[!\[Stats\]\(https://raw\.githubusercontent\.com/[^)]+counter\.png[^)]*\)\]\(https://github\.com/[^)]+\)'
-          new_content = re.sub(pattern, badge, content)
-          if new_content == content:
-            new_content = re.sub(
-              r'https://raw\.githubusercontent\.com/[^/]+/[^/]+/[^/]+/counter\.png(\?v=[0-9]+)?',
-              new_url,
-              content
-            )
+          # Replace any counter.png URL (with or without ?v=) to bust cache
+          content = re.sub(
+            r'https://raw\.githubusercontent\.com/[^/]+/[^/]+/[^/]+/counter\.png(\?v=[0-9]+)?',
+            new_url,
+            content
+          )
           with open('README.md', 'w') as f:
-            f.write(new_content)
-          print(f"Badge URL updated: ?v={ts}")
+            f.write(content)
+          print(f"Badge URL: ?v={ts}")
           PYEOF
 
       - name: Commit and Push
