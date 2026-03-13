@@ -111,12 +111,12 @@ jobs:
           HEIGHT=$(identify -format "%h" "$BG")
           CENTER_Y=$(( (HEIGHT - DIGIT_H) / 2 ))
           
-          TOTAL_X=$(calc_start_x "$TOTAL" 250)
+          TOTAL_X=$(calc_start_x "$TOTAL" 180)
           CURRENT_X=$(calc_start_x "$CURRENT" $((WIDTH/2)))
-          LONGEST_X=$(calc_start_x "$LONGEST" $((WIDTH - 400)))
+          LONGEST_X=$(calc_start_x "$LONGEST" $((WIDTH - 120)))
           
           TOTAL_Y=$CENTER_Y
-          CURRENT_Y=$((CENTER_Y - DIGIT_H))
+          CURRENT_Y=$((CENTER_Y - DIGIT_H/2))
           LONGEST_Y=$CENTER_Y
           
           COMPOSITE_CMD="convert '$BG'"
