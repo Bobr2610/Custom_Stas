@@ -33,12 +33,12 @@ jobs:
           USER="${{ github.repository_owner }}"
           echo "user=$USER" >> $GITHUB_OUTPUT
           
-          RESP=$(curl -sf "https://api.franznkemaka.com/github-streak/stats/$USER" 2>/dev/null || echo '{}')
+          RESP=$(curl -sf "https://streak-stats.demolab.com/?user=$USER&type=json" 2>/dev/null || echo '{}')
           echo "API response: $RESP"
           
           TOTAL=$(echo "$RESP" | jq -r '.totalContributions // 0')
-          CURRENT=$(echo "$RESP" | jq -r 'if .currentStreak.days then .currentStreak.days elif .currentStreak then .currentStreak else 0 end')
-          LONGEST=$(echo "$RESP" | jq -r 'if .longestStreak.days then .longestStreak.days elif .longestStreak then .longestStreak else 0 end')
+          CURRENT=$(echo "$RESP" | jq -r '.currentStreak.length // 0')
+          LONGEST=$(echo "$RESP" | jq -r '.longestStreak.length // 0')
           
           echo "total=$TOTAL" >> $GITHUB_OUTPUT
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
