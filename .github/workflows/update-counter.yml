@@ -149,11 +149,14 @@ jobs:
           eval $COMPOSITE_CMD
 
       - name: Update README badge
+        id: cachebust
         env:
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
         run: |
-          export TS=$(date +%s)
+          TS=$(date +%s)
+          echo "ts=$TS" >> $GITHUB_OUTPUT
+          export TS REPO BRANCH
           python3 << 'PYEOF'
           import re, os
           repo = os.environ['REPO']
@@ -166,10 +169,14 @@ jobs:
           pattern = r'\[!\[Stats\]\(https://raw\.githubusercontent\.com/[^)]+counter\.png[^)]*\)\]\(https://github\.com/[^)]+\)'
           new_content = re.sub(pattern, badge, content)
           if new_content == content:
-            new_content = re.sub(r'https://raw\.githubusercontent\.com/[^/]+/[^/]+/[^/]+/counter\.png(\?v=[0-9]+)?', new_url, content)
+            new_content = re.sub(
+              r'https://raw\.githubusercontent\.com/[^/]+/[^/]+/[^/]+/counter\.png(\?v=[0-9]+)?',
+              new_url,
+              content
+            )
           with open('README.md', 'w') as f:
             f.write(new_content)
-          print(f"Badge URL: ?v={ts}")
+          print(f"Badge URL updated: ?v={ts}")
           PYEOF
 
       - name: Commit and Push
