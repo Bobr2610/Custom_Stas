@@ -1,0 +1,160 @@
+name: Update Overlay Counter
+
+on:
+  workflow_dispatch:
+    inputs:
+      github_username:
+        description: 'GitHub username for contribution stats'
+        required: false
+        default: ''
+  schedule:
+    - cron: '0 * * * *'
+  push:
+    paths-ignore:
+      - 'counter.png'
+      - 'theme/**'
+      - 'Theme/**'
+      - 'background.png'
+      - 'README.md'
+
+jobs:
+  update-counter:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get GitHub contribution stats
+        id: stats
+        run: |
+          USER="${{ github.event.inputs.github_username || github.repository_owner }}"
+          echo "user=$USER" >> $GITHUB_OUTPUT
+          
+          RESP=$(curl -s "https://api.franznkemaka.com/github-streak/stats/$USER" 2>/dev/null || echo '{}')
+          
+          TOTAL=$(echo "$RESP" | jq -r '.totalContributions // 0')
+          CURRENT=$(echo "$RESP" | jq -r '.currentStreak.days // .currentStreak // 0')
+          LONGEST=$(echo "$RESP" | jq -r '.longestStreak.days // .longestStreak // 0')
+          
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "longest=$LONGEST" >> $GITHUB_OUTPUT
+
+      - name: Setup ImageMagick
+        run: sudo apt-get update && sudo apt-get install -y imagemagick jq
+
+      - name: Create digit images
+        run: |
+          mkdir -p theme Theme
+          for i in 0 1 2 3 4 5 6 7 8 9; do
+            for dir in theme Theme; do
+              if [ ! -f "$dir/$i.png" ]; then
+                convert -size 36x48 xc:transparent -fill white -pointsize 36 -gravity center -annotate +0+0 "$i" "$dir/$i.png"
+              fi
+            done
+          done
+
+      - name: Create counter image with stats overlay
+        env:
+          TOTAL: ${{ steps.stats.outputs.total }}
+          CURRENT: ${{ steps.stats.outputs.current }}
+          LONGEST: ${{ steps.stats.outputs.longest }}
+        run: |
+          TOTAL="${TOTAL:-0}"
+          CURRENT="${CURRENT:-0}"
+          LONGEST="${LONGEST:-0}"
+          
+          BG=""
+          [ -f "Theme/theme_beavers.png" ] && BG="Theme/theme_beavers.png"
+          [ -z "$BG" ] && [ -f "theme/theme_beavers.png" ] && BG="theme/theme_beavers.png"
+          [ -z "$BG" ] && ls Theme/*.png 1>/dev/null 2>&1 && BG=$(ls Theme/*.png | head -1)
+          [ -z "$BG" ] && ls theme/*.png 1>/dev/null 2>&1 && BG=$(ls theme/*.png | head -1)
+          [ -z "$BG" ] && [ -f "background.png" ] && BG="background.png"
+          if [ -z "$BG" ]; then
+            convert -size 1332x800 xc:transparent -background transparent counter.png
+            exit 0
+          fi
+          
+          WIDTH=$(identify -format "%w" "$BG")
+          HEIGHT=$(identify -format "%h" "$BG")
+          
+          DIGIT_W=36
+          DIGIT_H=48
+          SPACING=2
+          
+          calc_start_x() {
+            local n=$1
+            local center=$2
+            local len=${#n}
+            [ $len -eq 0 ] && len=1
+            local w=$((len * (DIGIT_W + SPACING) - SPACING))
+            local x=$((center - w/2))
+            [ $x -lt 10 ] && x=10
+            echo $x
+          }
+          
+          TOTAL_X=$(calc_start_x "$TOTAL" 250)
+          CURRENT_X=$(calc_start_x "$CURRENT" $((WIDTH/2)))
+          LONGEST_X=$(calc_start_x "$LONGEST" $((WIDTH - 250)))
+          
+          TOTAL_Y=500
+          CURRENT_Y=400
+          LONGEST_Y=500
+          
+          COMPOSITE_CMD="convert '$BG'"
+          
+          add_num() {
+            local NUM=$1
+            local SX=$2
+            local SY=$3
+            [ -z "$NUM" ] && NUM="0"
+            local LEN=${#NUM}
+            [ $LEN -eq 0 ] && NUM="0" && LEN=1
+            local i XP D DF
+            for i in $(seq 0 $((LEN - 1))); do
+              D="${NUM:$i:1}"
+              DF="Theme/$D.png"
+              [ ! -f "$DF" ] && DF="theme/$D.png"
+              if [ -f "$DF" ]; then
+                XP=$((SX + i * (DIGIT_W + SPACING)))
+                COMPOSITE_CMD="$COMPOSITE_CMD \\( '$DF' -resize ${DIGIT_W}x${DIGIT_H} \\) -geometry +${XP}+${SY} -composite"
+              fi
+            done
+          }
+          
+          add_num "$TOTAL" "$TOTAL_X" "$TOTAL_Y"
+          add_num "$CURRENT" "$CURRENT_X" "$CURRENT_Y"
+          add_num "$LONGEST" "$LONGEST_X" "$LONGEST_Y"
+          
+          COMPOSITE_CMD="$COMPOSITE_CMD counter.png"
+          eval $COMPOSITE_CMD
+
+      - name: Update README badge (auto-detect repo and cache-bust)
+        env:
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          export TS=$(date +%s)
+          python3 << 'PYEOF'
+          import re, os
+          with open('README.md') as f:
+            content = f.read()
+          repo = os.environ['REPO']
+          branch = os.environ['BRANCH']
+          ts = os.environ['TS']
+          pattern = r'\[!\[Stats\]\(https://raw\.githubusercontent\.com/[^/]+/[^/]+/[^/]+/counter\.png(\?v=[0-9]+)?\)\]\(https://github\.com/[^)]+\)'
+          replacement = f'[![Stats](https://raw.githubusercontent.com/{repo}/{branch}/counter.png?v={ts})](https://github.com/{repo})'
+          content = re.sub(pattern, replacement, content)
+          with open('README.md', 'w') as f:
+            f.write(content)
+          PYEOF
+
+      - name: Commit and push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add -A
+          git diff --staged --quiet || git commit -m "Update counter"
+          git push

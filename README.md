@@ -1,0 +1,38 @@
+# Custom Overlay Counter
+
+## Пример с моими статами
+
+[![Stats](https://raw.githubusercontent.com/REPO_OWNER/REPO_NAME/BRANCH/counter.png?v=0)](https://github.com/REPO_OWNER/REPO_NAME)
+
+Отображает **Total Contributions**, **Current Streak** и **Longest Streak** поверх вашего фонового изображения.
+
+---
+
+## Настройка
+
+### 1. Настройте фоновое изображение
+
+Положите ваше изображение в папку `Theme/` (или `theme/`). Для темы с бобрами (`theme_beavers.png`) workflow автоматически разместит **Total Contributions**, **Current Streak** и **Longest Streak** поверх изображения.
+
+### 2. (Опционально) Свои цифры
+
+Положите изображения цифр в папку `Theme/` (или `theme/`) с именами `0.png`, `1.png`, ... `9.png`. Если их нет, будут созданы автоматически.
+
+### 3. Запуск
+
+- **Автоматически:** каждый час и при пуше (используется владелец репозитория)
+- **Вручную:** **Actions** → **Update Overlay Counter** → **Run workflow** (можно указать другой GitHub username)
+
+---
+
+## Структура файлов
+
+```
+├── .github/workflows/update-counter.yml
+├── Theme/
+│   ├── theme_beavers.png  (тема с бобрами — 3 области для статистики)
+│   ├── 0.png ... 9.png   (цифры, создаются автоматически)
+│   └── *.png             (другие фоновые изображения)
+├── counter.png           (генерируется)
+└── README.md
+```
