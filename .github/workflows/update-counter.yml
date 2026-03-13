@@ -2,11 +2,6 @@ name: Update Overlay Counter
 
 on:
   workflow_dispatch:
-    inputs:
-      github_username:
-        description: 'GitHub username for contribution stats'
-        required: false
-        default: ''
   schedule:
     - cron: '0 * * * *'
   push:
@@ -29,7 +24,7 @@ jobs:
       - name: Get GitHub contribution stats
         id: stats
         run: |
-          USER="${{ github.event.inputs.github_username || github.repository_owner }}"
+          USER="${{ github.repository_owner }}"
           echo "user=$USER" >> $GITHUB_OUTPUT
           
           RESP=$(curl -s "https://api.franznkemaka.com/github-streak/stats/$USER" 2>/dev/null || echo '{}')
@@ -50,9 +45,7 @@ jobs:
           mkdir -p theme Theme
           for i in 0 1 2 3 4 5 6 7 8 9; do
             for dir in theme Theme; do
-              if [ ! -f "$dir/$i.png" ]; then
-                convert -size 36x48 xc:transparent -fill white -pointsize 36 -gravity center -annotate +0+0 "$i" "$dir/$i.png"
-              fi
+              convert -size 40x52 xc:transparent -fill '#22c55e' -stroke '#15803d' -strokewidth 3 -pointsize 40 -gravity center -annotate +0+0 "$i" "$dir/$i.png"
             done
           done
 
@@ -80,8 +73,8 @@ jobs:
           WIDTH=$(identify -format "%w" "$BG")
           HEIGHT=$(identify -format "%h" "$BG")
           
-          DIGIT_W=36
-          DIGIT_H=48
+          DIGIT_W=40
+          DIGIT_H=52
           SPACING=2
           
           calc_start_x() {
