@@ -1,16 +1,17 @@
 name: Update Overlay Counter
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 * * * *'
   push:
+    branches: [main, master]
     paths-ignore:
       - 'counter.png'
       - 'theme/**'
       - 'Theme/**'
       - 'background.png'
       - 'README.md'
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -24,8 +25,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup ImageMagick
-        run: sudo apt-get update && sudo apt-get install -y imagemagick jq
+      - name: Setup
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick jq
 
       - name: Get GitHub contribution stats
         id: stats
@@ -33,28 +34,36 @@ jobs:
           USER="${{ github.repository_owner }}"
           echo "user=$USER" >> $GITHUB_OUTPUT
           
-          RESP=$(curl -sf "https://streak-stats.demolab.com/?user=$USER&type=json" 2>/dev/null || echo '{}')
-          echo "API response: $RESP"
+          TOTAL=""
+          CURRENT=""
+          LONGEST=""
           
-          TOTAL=$(echo "$RESP" | jq -r '.totalContributions // 0')
-          CURRENT=$(echo "$RESP" | jq -r '.currentStreak.length // 0')
-          LONGEST=$(echo "$RESP" | jq -r '.longestStreak.length // 0')
+          # 1. Try streak-stats.demolab.com (no token needed)
+          RESP=$(curl -sfL -H "User-Agent: Mozilla/5.0 (compatible; GitHub-Actions)" \
+            -H "Accept: application/json" \
+            "https://streak-stats.demolab.com/?user=$USER&type=json" 2>/dev/null || true)
+          
+          if [ -n "$RESP" ] && echo "$RESP" | jq -e '.totalContributions' >/dev/null 2>&1; then
+            TOTAL=$(echo "$RESP" | jq -r '.totalContributions')
+            CURRENT=$(echo "$RESP" | jq -r '.currentStreak.length // 0')
+            LONGEST=$(echo "$RESP" | jq -r '.longestStreak.length // 0')
+            echo "Source: streak-stats.demolab.com"
+          fi
+          
+          # 2. Fallback: counter.json
+          if [ -z "$TOTAL" ] || [ "$TOTAL" = "null" ]; then
+            TOTAL=$(jq -r '.total // 0' counter.json 2>/dev/null || echo "0")
+            CURRENT=$(jq -r '.current // 0' counter.json 2>/dev/null || echo "0")
+            LONGEST=$(jq -r '.longest // 0' counter.json 2>/dev/null || echo "0")
+            echo "Source: counter.json fallback"
+          fi
           
           echo "total=$TOTAL" >> $GITHUB_OUTPUT
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
           echo "longest=$LONGEST" >> $GITHUB_OUTPUT
           echo "Total: $TOTAL, Current: $CURRENT, Longest: $LONGEST"
 
-      - name: Create digit images
-        run: |
-          mkdir -p theme Theme
-          for i in 0 1 2 3 4 5 6 7 8 9; do
-            for dir in theme Theme; do
-              convert -size 40x52 xc:transparent -fill '#22c55e' -stroke '#15803d' -strokewidth 3 -pointsize 40 -gravity center -annotate +0+0 "$i" "$dir/$i.png"
-            done
-          done
-
-      - name: Create counter image with stats overlay
+      - name: Generate counter from beaver theme
         env:
           TOTAL: ${{ steps.stats.outputs.total }}
           CURRENT: ${{ steps.stats.outputs.current }}
@@ -64,20 +73,26 @@ jobs:
           CURRENT="${CURRENT:-0}"
           LONGEST="${LONGEST:-0}"
           
+          mkdir -p theme Theme
+          for i in 0 1 2 3 4 5 6 7 8 9; do
+            for dir in theme Theme; do
+              convert -size 40x52 xc:transparent -fill '#22c55e' -stroke '#15803d' -strokewidth 3 -pointsize 40 -gravity center -annotate +0+0 "$i" "$dir/$i.png"
+            done
+          done
+          
           BG=""
           [ -f "Theme/theme_beavers.png" ] && BG="Theme/theme_beavers.png"
           [ -z "$BG" ] && [ -f "theme/theme_beavers.png" ] && BG="theme/theme_beavers.png"
           [ -z "$BG" ] && ls Theme/*.png 1>/dev/null 2>&1 && BG=$(ls Theme/*.png | head -1)
           [ -z "$BG" ] && ls theme/*.png 1>/dev/null 2>&1 && BG=$(ls theme/*.png | head -1)
           [ -z "$BG" ] && [ -f "background.png" ] && BG="background.png"
+          
           if [ -z "$BG" ]; then
             convert -size 1332x800 xc:transparent -background transparent counter.png
             exit 0
           fi
           
           WIDTH=$(identify -format "%w" "$BG")
-          HEIGHT=$(identify -format "%h" "$BG")
-          
           DIGIT_W=40
           DIGIT_H=52
           SPACING=2
@@ -129,7 +144,7 @@ jobs:
           COMPOSITE_CMD="$COMPOSITE_CMD counter.png"
           eval $COMPOSITE_CMD
 
-      - name: Update README badge (auto-detect repo and cache-bust)
+      - name: Update README badge
         env:
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
@@ -141,7 +156,7 @@ jobs:
             content = f.read()
           repo = os.environ['REPO']
           branch = os.environ['BRANCH']
-          ts = os.environ['TS']
+          ts = os.environ.get('TS', '0')
           pattern = r'\[!\[Stats\]\(https://raw\.githubusercontent\.com/[^/]+/[^/]+/[^/]+/counter\.png(\?v=[0-9]+)?\)\]\(https://github\.com/[^)]+\)'
           replacement = f'[![Stats](https://raw.githubusercontent.com/{repo}/{branch}/counter.png?v={ts})](https://github.com/{repo})'
           content = re.sub(pattern, replacement, content)
@@ -149,11 +164,10 @@ jobs:
             f.write(content)
           PYEOF
 
-      - name: Commit and push
+      - name: Commit and Push
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add -A
-          git diff --staged --quiet && echo "No changes to commit" || git commit -m "Update counter"
-          git status
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add counter.png README.md
+          git diff --staged --quiet || git commit -m "Update counter: ${{ steps.stats.outputs.total }}/${{ steps.stats.outputs.current }}/${{ steps.stats.outputs.longest }}"
           git push

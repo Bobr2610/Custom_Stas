@@ -35,6 +35,7 @@
 │   ├── theme_beavers.png  (тема с бобрами — 3 области для статистики)
 │   ├── 0.png ... 9.png   (цифры, создаются автоматически)
 │   └── *.png             (другие фоновые изображения)
+├── counter.json          (fallback при сбое API: {"total": N, "current": N, "longest": N})
 ├── counter.png           (генерируется)
 └── README.md
 ```
