@@ -113,10 +113,10 @@ jobs:
           
           TOTAL_X=$(calc_start_x "$TOTAL" 250)
           CURRENT_X=$(calc_start_x "$CURRENT" $((WIDTH/2)))
-          LONGEST_X=$(calc_start_x "$LONGEST" $((WIDTH - 250)))
+          LONGEST_X=$(calc_start_x "$LONGEST" $((WIDTH - 400)))
           
           TOTAL_Y=$CENTER_Y
-          CURRENT_Y=$CENTER_Y
+          CURRENT_Y=$((CENTER_Y - DIGIT_H))
           LONGEST_Y=$CENTER_Y
           
           COMPOSITE_CMD="convert '$BG'"
