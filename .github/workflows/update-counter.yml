@@ -10,7 +10,7 @@ on:
       - 'background.png'
       - 'README.md'
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 0,12 * * *'  # Twice a day
   workflow_dispatch:
 
 env:
