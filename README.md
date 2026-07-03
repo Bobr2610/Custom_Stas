@@ -2,7 +2,7 @@
 
 ## Пример с моими статами
 
-[![Stats](https://raw.githubusercontent.com/Bobr2610/Custom_Stas/0eb27cb74598eb9158d6e0343e4be7fb3c594d35/counter.png)](https://github.com/Bobr2610/Custom_Stas)
+[![Stats](https://raw.githubusercontent.com/Bobr2610/Custom_Stas/f12ee7f93ec935be0f7ca36ec43adca5ec8411b4/counter.png)](https://github.com/Bobr2610/Custom_Stas)
 
 Отображает **Total Contributions**, **Current Streak** и **Longest Streak** поверх вашего фонового изображения.
 
